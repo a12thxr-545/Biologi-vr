@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ห้องเรียนชีววิทยาเสมือนจริง 3D & VR (Virtual Biology Classroom)</title>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      overflow: hidden;
+      background-color: #0b1120;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #e2e8f0;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Minimalist Top Classroom Bar */
+    #classroom-header {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .classroom-badge {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      padding: 8px 16px;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .room-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: 0.2px;
+    }
+
+    .room-tag {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .top-tools {
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .minimal-btn {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .minimal-btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      transform: translateY(-1px);
+    }
+
+    /* Minimalist First-Person Crosshair */
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1.5px solid rgba(15, 23, 42, 0.8);
+      pointer-events: none;
+      z-index: 30;
+      transition: all 0.15s ease;
+    }
+
+    #crosshair.active {
+      transform: translate(-50%, -50%) scale(1.6);
+      background: #38bdf8;
+      border-color: #ffffff;
+      box-shadow: 0 0 12px #38bdf8;
+    }
+
+    /* In-World Context Action Tooltip */
+    #action-tooltip {
+      position: fixed;
+      top: 54%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 20px;
+      padding: 7px 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #f8fafc;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+      z-index: 30;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #action-tooltip.hidden {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+      pointer-events: none;
+    }
+
+    .action-key-badge {
+      background: #0284c7;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+
+    /* Classroom Walk Navigation Guide (Minimal Bottom Left) */
+    #walk-hint {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.78rem;
+      color: #94a3b8;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .key-cap {
+      background: #334155;
+      color: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.74rem;
+      border-bottom: 2px solid #1e293b;
+    }
+
+    /* Minimalist On-Screen D-Pad (Mobile / Touch Support) */
+    #touch-dpad {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: none;
+      grid-template-columns: repeat(3, 44px);
+      grid-template-rows: repeat(2, 44px);
+      gap: 6px;
+      z-index: 20;
+    }
+
+    .touch-btn {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    #btn-forward { grid-column: 2; grid-row: 1; }
+    #btn-left { grid-column: 1; grid-row: 2; }
+    #btn-backward { grid-column: 2; grid-row: 2; }
+    #btn-right { grid-column: 3; grid-row: 2; }
+
+    @media (pointer: coarse) {
+      #walk-hint { display: none; }
+      #touch-dpad { display: grid; }
+    }
+
+    /* VR Button Styling overrides */
+    #vr-button {
+      position: absolute !important;
+      bottom: 20px !important;
+      right: 20px !important;
+      left: auto !important;
+      background: #0284c7 !important;
+      border: 1px solid #38bdf8 !important;
+      border-radius: 20px !important;
+      font-weight: 700 !important;
+      font-size: 0.82rem !important;
+      padding: 9px 18px !important;
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.4) !important;
+      cursor: pointer !important;
+      transition: all 0.2s !important;
+      z-index: 20 !important;
+    }
+
+    #vr-button:hover {
+      background: #0369a1 !important;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.8) !important;
+    }
+
+    /* ========================================================
+       HYPER-REALISTIC MICROSCOPE EYEPIECE VIEWPORT
+       ======================================================== */
+    #ocular-view-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: radial-gradient(circle at center, transparent 33%, rgba(0, 0, 0, 0.85) 48%, #030712 60%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+
+    #ocular-view-overlay.hidden {
+      display: none;
+      opacity: 0;
+    }
+
+    .ocular-top-bar {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 8px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 95%;
+      max-width: 960px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    }
+
+    .ocular-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #38bdf8;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .focus-status-badge {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .focus-status-badge.blur {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .pulse-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+
+    .ocular-center-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+
+    .binocular-mask {
+      position: relative;
+      width: 530px;
+      height: 530px;
+      max-width: 76vmin;
+      max-height: 76vmin;
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 0 0 1000px #030712, 0 0 50px rgba(56, 189, 248, 0.35);
+      border: 5px solid #1e293b;
+      cursor: grab;
+    }
+
+    .binocular-mask:active {
+      cursor: grabbing;
+    }
+
+    #eyepiece-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000000;
+    }
+
+    .lens-glare {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.12) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .drag-hint {
+      margin-top: 8px;
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 4px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Minimalist Optical Controls Dock */
+    .ocular-controls-dock {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 8px 18px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9);
+      max-width: 95vw;
+      overflow-x: auto;
+    }
+
+    .dock-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding-right: 14px;
+    }
+
+    .dock-group:last-child {
+      border-right: none;
+      padding-right: 0;
+    }
+
+    .dock-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #38bdf8;
+      white-space: nowrap;
+    }
+
+    .mini-btn {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+
+    .mini-btn:hover {
+      background: #334155;
+      border-color: #38bdf8;
+    }
+
+    .mag-btn {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .mag-btn:hover {
+      background: #0369a1;
+      color: #ffffff;
+    }
+
+    .mag-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+
+    .focus-range {
+      width: 85px;
+      cursor: pointer;
+    }
+
+    /* Biology Lab Notebook Modal */
+    #lab-notebook-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 120;
+    }
+
+    #lab-notebook-modal.hidden {
+      display: none;
+    }
+
+    .notebook-card {
+      background: #0f172a;
+      border: 2px solid #38bdf8;
+      border-radius: 20px;
+      padding: 24px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9);
+    }
+
+    .notebook-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #1e293b;
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .close-btn:hover {
+      color: #ffffff;
+    }
+
+    .obs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .obs-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .obs-img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #475569;
+    }
+
+    /* Biology Quiz Modal */
+    #quiz-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #quiz-modal.hidden {
+      display: none;
+    }
+
+    .quiz-card {
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      border-radius: 18px;
+      padding: 24px;
+      width: 90%;
+      max-width: 580px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .quiz-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .quiz-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .quiz-option-btn {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      padding: 12px 16px;
+      border-radius: 10px;
+      text-align: left;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .quiz-option-btn:hover:not(:disabled) {
+      background: #334155;
+      border-color: #38bdf8;
+    }
+  </style>
+
+  <!-- Modern Import Map for Three.js -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script>
+    window.addEventListener('error', e => {
+      console.error('BioVerse Error:', e);
+      let el = document.getElementById('debug-err');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'debug-err';
+        el.style.cssText = 'position:fixed;bottom:10px;left:10px;background:rgba(239,68,68,0.95);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;z-index:9999;max-width:85vw;word-break:break-word;';
+        document.body.appendChild(el);
+      }
+      const fileInfo = e.filename ? ` (${e.filename.split('/').pop()}:${e.lineno})` : '';
+      el.textContent = 'Error: ' + (e.message || (e.error && e.error.message) || e) + fileInfo;
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Minimalist Top Classroom Bar -->
+  <header id="classroom-header">
+    <div class="classroom-badge">
+      <span style="font-size: 1.15rem;">🏫</span>
+      <span class="room-title">ห้องเรียนชีววิทยา</span>
+      <span class="room-tag">3D & VR Classroom</span>
+    </div>
+
+    <div class="top-tools">
+      <button id="open-notebook-btn" class="minimal-btn" title="สมุดรายงานบันทึกภาพผลการทดลอง">
+        <span>📖</span> สมุดแล็บ
+      </button>
+      <button id="open-quiz-btn" class="minimal-btn" title="แบบทดสอบความรู้">
+        <span>📝</span> แบบทดสอบ
+      </button>
+      <button id="audio-toggle-btn" class="minimal-btn" title="เปิด/ปิดเสียง">
+        <span id="audio-icon">🔊</span> เสียง
+      </button>
+    </div>
+  </header>
+
+  <!-- Minimalist Center Crosshair Dot -->
+  <div id="crosshair"></div>
+
+  <!-- Dynamic In-World Context Action Tooltip -->
+  <div id="action-tooltip" class="hidden">
+    <span class="action-key-badge">[คลิก]</span>
+    <span id="action-text">ใช้งานอุปกรณ์</span>
+  </div>
+
+  <!-- First-Person Walking Hint -->
+  <div id="walk-hint">
+    <div>🚶‍♂️ <strong>เดิน:</strong> <span class="key-cap">W</span><span class="key-cap">A</span><span class="key-cap">S</span><span class="key-cap">D</span></div>
+    <div>👀 <strong>หันมอง (มุมมองคน):</strong> คลิกที่จอเพื่อล็อกเมาส์หันมอง | กด <span class="key-cap">Esc</span> เพื่อปลดล็อก</div>
+    <div>🔬 <strong>ใช้งาน:</strong> เดินไปใกล้อุปกรณ์แล้วคลิก</div>
+  </div>
+
+  <!-- Touch D-Pad for Touchscreen Devices -->
+  <div id="touch-dpad">
+    <button class="touch-btn" id="btn-forward">▲</button>
+    <button class="touch-btn" id="btn-left">◀</button>
+    <button class="touch-btn" id="btn-backward">▼</button>
+    <button class="touch-btn" id="btn-right">▶</button>
+  </div>
+
+  <!-- Hyper-Realistic Microscope Eyepiece Viewport -->
+  <div id="ocular-view-overlay" class="hidden">
+    <!-- Top Bar -->
+    <div class="ocular-top-bar">
+      <div class="ocular-title">
+        <span class="pulse-dot"></span>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="eye-specimen-title" style="font-size: 1.05rem; font-weight: 700; color: #38bdf8;">🧅 เซลล์เยื่อหอม (Onion - Allium Cepa)</span>
+            <span id="eye-focus-status" class="focus-status-badge">✓ โฟกัสคมชัด</span>
+          </div>
+          <div id="eye-specimen-meta" style="font-size: 0.8rem; color: #cbd5e1;">กำลังขยาย: 100x (เลนส์ใกล้ตา 10x × เลนส์ใกล้วัตถุ 10x) | สีย้อม: ไม่ย้อมสี</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="ocular-snap-btn" class="minimal-btn" style="background: #16a34a; color: #fff; border: none;">
+          📸 บันทึกภาพลงสมุด
+        </button>
+        <button id="ocular-notebook-btn" class="minimal-btn">
+          📖 ดูสมุดแล็บ
+        </button>
+        <button id="ocular-step-back-btn" class="minimal-btn" style="background: #dc2626; color: #fff; border: none;">
+          ⬅️ ถอยออกจากกล้อง
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Ocular Binocular Viewport -->
+    <div class="ocular-center-container">
+      <div class="binocular-mask" id="binocular-mask-el">
+        <canvas id="eyepiece-canvas" width="600" height="600"></canvas>
+        <div class="lens-glare"></div>
+      </div>
+      <div class="drag-hint">🖱️ ลากเมาส์บนเลนส์เพื่อเลื่อนสไลด์ (Pan) | หมุนลูกกลิ้งเพื่อปรับโฟกัส | กด Esc เพื่อถอยออก</div>
+    </div>
+
+    <!-- Bottom Optical Controls Dock -->
+    <div class="ocular-controls-dock">
+      <!-- Stage Pan Calipers -->
+      <div class="dock-group">
+        <span class="dock-label">เลื่อนสไลด์:</span>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+          <button id="eye-pan-up" class="mini-btn">▲</button>
+          <div style="display: flex; gap: 4px;">
+            <button id="eye-pan-left" class="mini-btn">◀</button>
+            <button id="eye-pan-down" class="mini-btn">▼</button>
+            <button id="eye-pan-right" class="mini-btn">▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Objective Lenses -->
+      <div class="dock-group">
+        <span class="dock-label">เลนส์ใกล้วัตถุ:</span>
+        <button class="mag-btn" data-mag="4">4x</button>
+        <button class="mag-btn active" data-mag="10">10x</button>
+        <button class="mag-btn" data-mag="40">40x</button>
+        <button class="mag-btn" data-mag="100">100x Oil</button>
+      </div>
+
+      <!-- Focus Controls -->
+      <div class="dock-group">
+        <span class="dock-label">โฟกัส:</span>
+        <button id="focus-coarse-minus" class="mini-btn" title="ปรับหยาบ -">-10</button>
+        <button id="focus-fine-minus" class="mini-btn" title="ปรับละเอียด -">-2</button>
+        <input id="eye-focus-slider" class="focus-range" type="range" min="0" max="100" value="50">
+        <button id="focus-fine-plus" class="mini-btn" title="ปรับละเอียด +">+2</button>
+        <button id="focus-coarse-plus" class="mini-btn" title="ปรับหยาบ +">+10</button>
+      </div>
+
+      <!-- Diaphragm & Micrometer -->
+      <div class="dock-group">
+        <button id="toggle-micrometer-btn" class="mini-btn" style="color: #38bdf8;">📏 ไมโครมิเตอร์: ปิด</button>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 0.75rem; color: #94a3b8;">ม่านแสง:</span>
+          <input id="eye-diaphragm-slider" type="range" min="0.2" max="1.0" step="0.05" value="0.85" style="width: 65px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Biology Lab Notebook Modal -->
+  <div id="lab-notebook-modal" class="hidden">
+    <div class="notebook-card">
+      <div class="notebook-header">
+        <div>
+          <h2 style="color: #38bdf8; font-size: 1.3rem;">📖 สมุดบันทึกผลการทดลองชีววิทยา (Lab Notebook)</h2>
+          <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">ห้องเรียนชีววิทยา | ปฏิบัติการกล้องจุลทรรศน์และออสโมซิสในเซลล์</div>
+        </div>
+        <button id="close-notebook-btn" class="close-btn">&times;</button>
+      </div>
+      <div id="notebook-body">
+        <!-- Dynamically rendered by main.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Biology Quiz Modal -->
+  <div id="quiz-modal" class="hidden">
+    <div class="quiz-card">
+      <div class="quiz-header">
+        <div class="quiz-title">📝 แบบทดสอบความรู้ชีววิทยา</div>
+        <button id="close-quiz-btn" class="close-btn">&times;</button>
+      </div>
+      <div id="quiz-content">
+        <!-- Injected dynamically by main.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- App Entry Script -->
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
